@@ -12,6 +12,72 @@ Project ini mendemonstrasikan logika dasar **RESTful API** menggunakan fitur mod
 2.  **Modern Routing (Path Value):** Menggunakan fitur baru Go (`r.PathValue`) untuk menangkap ID langsung dari URL (contoh: `/101`) tanpa perlu parsing manual atau query param.
 
 ---
+## 📚 Teori: Filosofi HTTP Methods (Wajib Paham!)
+
+Sebelum masuk ke kode, kita harus paham "Kenapa" hal ini ada. Bagian ini berisi konsep fundamental yang sering ditanyakan saat **Interview Backend Developer**.
+
+### 1. Apa itu HTTP Method?
+HTTP Method (disebut juga *HTTP Verbs*) adalah **Kata Kerja** yang dikirim Client (Browser/Postman) untuk memberitahu Server **tindakan apa** yang harus dilakukan terhadap data.
+
+Bayangkan kalimat bahasa Indonesia:
+* **URL (Kata Benda):** `/surat`
+* **Method (Kata Kerja):** `BAKAR` (Delete), `TULIS` (Post), atau `BACA` (Get).
+
+Tanpa Method, Server bingung: *"Kamu akses `/surat` ini mau diapain? Dibaca atau dibakar?"*
+
+### 2. Kenapa Tidak Pakai `POST` Saja Untuk Semuanya?
+Secara teknis, kita *bisa* membuat API yang isinya `POST` semua. Tapi ini adalah **Bad Practice** (Kebiasaan Buruk). Kenapa?
+
+1.  **Semantik (Bahasa yang Jelas):** `GET` berarti aman dibaca berulang-ulang, `DELETE` berarti awas ada data yang hilang. Frontend Developer akan berterima kasih jika Anda pakai standar ini.
+2.  **Caching (Kecepatan):** Browser hanya berani menyimpan (cache) data `GET` agar loading instan. Browser tidak akan menyimpan data `POST` karena dianggap berubah-ubah.
+
+###  Kamus Lengkap Method (Bedah Perbedaan)
+
+Berikut adalah 5 metode wajib bagi Backend Developer:
+
+| Method | Fungsi Utama | Sifat (Idempotent?) | Keterangan Simpel |
+| :--- | :--- | :--- | :--- |
+| **GET** | Mengambil data. | ✅ Ya (Aman) | Cuma "lihat-lihat". Tidak mengubah database. |
+| **POST** | Membuat data **BARU**. | ❌ Tidak | Tiap kali diklik, data baru tercipta (bisa duplikat). |
+| **PUT** | Update **TOTAL**. | ✅ Ya | Ganti seluruh isi data dengan yang baru. |
+| **PATCH** | Update **SEBAGIAN**. | ⚠️ Tergantung | Cuma tambal bagian yang rusak/diganti. |
+| **DELETE** | Menghapus data. | ✅ Ya | Hilangkan data selamanya. |
+
+### 💡 Topik Interview Pro: "Idempotency"
+*"Idempotent"* artinya: **Mau tombol diklik 1 kali atau 1000 kali, hasil akhirnya tetap sama.**
+
+* **DELETE itu Idempotent:** Hapus User ID 101.
+    * Klik 1x: Data hilang.
+    * Klik 100x lagi: Data tetap hilang (Server stabil, tidak ada kerusakan tambahan).
+* **POST itu TIDAK Idempotent:** Buat Pesanan Pizza.
+    * Klik 1x: Ada 1 pesanan.
+    * Klik 100x (karena HP lag): Ada **100 pesanan** masuk & saldo terpotong 100x. (Bahaya!).
+
+---
+### 🛒 Studi Kasus: Logika Keranjang Belanja (Shopee/Tokopedia)
+
+Sering ditanyakan: *"Apakah tombol 'Add to Cart' itu method POST?"*
+Jawabannya unik. Fitur keranjang belanja biasanya menggunakan logika Hybrid yang disebut **Upsert (Update or Insert)**.
+
+Mari kita bedah menggunakan cerita: **User Budi ingin membeli Sepatu (ID 101)**.
+
+1.  **Cek Database (Query):**
+    Saat Budi klik "Tambah", server mengecek: *"Barang ID 101 ini sudah ada belum di keranjang Budi?"*
+
+2.  **Skenario A: Barang Belum Ada (Logika POST/INSERT)**
+    * *Kondisi:* Budi baru pertama kali klik.
+    * *Aksi Server:* Buat baris baru.
+    * *Hasil Database:* `User: Budi | Item: 101 | Qty: 1`
+
+3.  **Skenario B: Barang Sudah Ada (Logika PATCH/UPDATE)**
+    * *Kondisi:* Budi klik lagi karena ingin beli 2 pasang.
+    * *Aksi Server:* **Jangan buat baris baru!** Cukup edit jumlahnya.
+    * *Logika:* `Qty_Baru = Qty_Lama + 1`
+    * *Hasil Database:* `User: Budi | Item: 101 | Qty: 2` (Tetap 1 baris).
+
+**Kesimpulan:**
+* **Fase Keranjang:** Fokus pada kenyamanan user & kerapian database (Upsert Logic).
+* **Fase Checkout (Bayar):** Fokus pada keamanan ketat. Di sinilah **Idempotency Key** wajib ada agar jika HP nge-lag, saldo tidak terpotong dua kali.
 
 ## 🍔 Analogi Logika: "Restoran & Nomor Meja"
 
