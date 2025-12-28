@@ -77,11 +77,67 @@ Kedua router ini kemudian dijalankan di port terpisah (8080 & 9090) menggunakan 
 ### 3. Tidak Adanya Kontrol Konfigurasi (Risiko Serangan)
 **Masalah:** Menggunakan `http.ListenAndServe(":8080", nil)` adalah cara yang "malas" karena menggunakan konfigurasi default server yang **tidak memiliki batas waktu (timeout)**.
 
-**Risiko Nyata: Slowloris Attack**
-> **🧟 Analogi:** Bayangkan ada pelanggan di restoran Anda. Dia memesan makanan, tapi bicaranya sangat lambat... *"Saya... (tunggu 10 menit)... mau... (tunggu 10 menit)... pesan..."*
-> Pelayan Anda terpaksa berdiri menunggu dia selamanya. Jika ada 1000 orang seperti ini, restoran Anda lumpuh.
+## 🛡️ Penjelasan Config Timeout (Mekanisme Anti-Gantung)
 
-Serangan **Slowloris** bekerja dengan cara mengirim request HTTP super lambat (1 byte per menit). Tanpa timeout, server Go akan menjaga koneksi itu tetap hidup selamanya sampai RAM server habis (Memory Leak) dan server mati.
+Dalam `&http.Server{}`, kita mengatur 3 batas waktu kritis. Tanpa ini, satu user dengan internet lemot bisa memblokir kinerja server untuk user lain.
+
+### 1. `ReadTimeout` (Batas Waktu Mendengar)
+Waktu maksimal server menunggu client/user mengirimkan **keseluruhan** data request (Header + Body).
+
+* **⏱ Kapan Dihitung:** Mulai dari koneksi diterima sampai seluruh data request (misal: upload file JSON) selesai dibaca.
+* **🗣 Analogi Restoran:** Pelayan mendatangi meja user.
+    * *User:* "Saya mau pesan..." (diam 5 menit) "...nasi..." (diam 5 menit) "...goreng".
+    * **Tanpa Timeout:** Pelayan terjebak menunggu selamanya.
+    * **Dengan ReadTimeout 10s:** Jika dalam 10 detik user belum selesai ngomong pesanan, pelayan langsung pergi (putus koneksi).
+* **🛡 Fungsi:** Mencegah serangan **Slowloris** (Hacker mengirim data super lambat untuk menghabiskan resource server).
+
+### 2. `WriteTimeout` (Batas Waktu Melayani)
+Waktu maksimal server untuk **memproses logic** (Handler) DAN **mengirim balik** respon ke user.
+
+* **⏱ Kapan Dihitung:** Mulai dari request selesai dibaca -> Masuk ke Handler (Database, Hitung Gaji, dll) -> Sampai byte terakhir respon dikirim ke user.
+* **🍳 Analogi Restoran:**
+    * Dapur (Server) memasak pesanan + Pelayan mengantar makanan ke meja.
+    * Jika koki memasak terlalu lama (Database lemot) ATAU user makan terlalu lambat (Internet user lemot saat download response), waktu habis.
+* **⚠️ Penting:** Jika proses database Anda butuh 15 detik, tapi `WriteTimeout` diset 10 detik, koneksi akan diputus di tengah jalan (Cancel) sebelum selesai.
+
+### 3. `IdleTimeout` (Batas Waktu Bengong/Keep-Alive)
+Waktu maksimal server membiarkan koneksi tetap "nyala" (Keep-Alive) saat **tidak ada aktivitas** antar request.
+
+* **⏱ Kapan Dihitung:** Setelah respon pertama selesai dikirim, sampai user mengirim request kedua.
+* **🪑 Analogi Restoran:**
+    * User sudah selesai makan (request 1 selesai). Tapi dia masih duduk di kursi (koneksi masih terbuka) sambil main HP.
+    * Berapa lama kita biarkan dia duduk sebelum kita usir supaya kursi bisa dipakai pelanggan lain?
+* **🛡 Fungsi:** Menghemat RAM. Web modern menggunakan fitur *Keep-Alive* agar tidak perlu *handshake* ulang tiap kali klik link. Tapi jika dibiarkan selamanya, server akan kehabisan memori menampung "penonton diam".
+
+---
+
+### 📊 Ringkasan Visual (Timeline)
+
+```text
+   [ KONEKSI MASUK ]
+          │
+          ▼
+[ ReadTimeout Mulai ] ──────────────────────────┐
+          │                                     │
+   (Baca Request Header & Body)                 │
+          │                                     │
+[ ReadTimeout Selesai ] ────────────────────────┘
+          │
+          ▼
+[ WriteTimeout Mulai ] ─────────────────────────┐
+          │                                     │
+    (Proses Logic / Database)                   │
+          │                                     │
+    (Kirim Respon Balik ke User)                │
+          │                                     │
+[ WriteTimeout Selesai ] ───────────────────────┘
+          │
+          ▼
+[ IdleTimeout Mulai ] ──────────────────────────┐
+          │                                     │
+   (Menunggu Request Selanjutnya...)            │
+          │                                     │
+[ IdleTimeout Selesai (Tutup Koneksi) ] ────────┘
 
 **✅ Solusi (`http.Server` Wrapper):**
 Kita membungkus `mux` kita ke dalam struct `http.Server` untuk menetapkan batas tegas.
