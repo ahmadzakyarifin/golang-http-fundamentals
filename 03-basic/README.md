@@ -156,12 +156,15 @@ Solusinya dulu adalah pakai **Query Parameter (`?id=`)**:
 * **Kelemahan:** URL terlihat kurang rapi dan tidak standar RESTful API modern.
 
 #### B. Cara Baru (The Modern Way - Path Value) 🚀
-Sejak **Go 1.22 (Feb 2024)**, Go menjadi lebih pintar! Kita bisa menggunakan **Wildcard** di routing.
-
+Sejak **Go 1.22 (Feb 2024)**, Go menjadi lebih pintar! Kita bisa menggunakan **Wildcard / Path Parameter** di routing.
+Wildcard adalah simbol / placeholder di URL path yang bisa diganti dengan nilai apa pun, sehingga satu route bisa menangani banyak URL berbeda.
 * **Setup Route:** `http.HandleFunc("/{id}", ...)`
 * **URL:** `http://localhost:8080/101`
 * **Kode:** `id := r.PathValue("id")`
-* **Kelebihan:** URL bersih, rapi, dan sesuai standar industri.
+* **Kelebihan:**
+  1. URL bersih, rapi, dan sesuai standar RESTful API.
+  2. Memisahkan resource utama dan info tambahan
+
 
 ###  Kenapa Harus Dua Route (`/` dan `/{id}`)? Apakah ini Kemunduran?
 
