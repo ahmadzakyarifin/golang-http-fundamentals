@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ahmadzakyarifin/04-basic/handler"
+	"github.com/ahmadzakyarifin/golang-http-fundamentals/04-basic/handler"
 )
 
 func main(){
