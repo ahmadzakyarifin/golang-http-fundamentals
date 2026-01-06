@@ -18,6 +18,37 @@ Ada dua teknik utama yang diterapkan di sini:
     Teknik mengirim data antar-layer (dari Middleware ke Handler) tanpa merubah parameter fungsi, menggunakan `context.Context`.
 
 ---
+## ❓ Mengapa Harus Context? (Studi Kasus)
+
+Banyak pemula bertanya: 
+> *"Kenapa harus ribet pakai `Context` dan Middleware? Kenapa tidak simpan data di variabel global saja biar gampang?"*
+
+Mari kita bedah 3 skenario, dari yang **paling kacau** hingga **solusi terbaik**:
+
+### ❌ Skenario 1: Pakai Global Variable (FATAL!)
+Bayangkan kita membuat satu variabel `var CurrentUser string` di luar fungsi handler.
+
+* **Logika:** User login -> isi variabel global -> Handler baca variabel global.
+* **Masalah (Race Condition):** 1.  **Budi** login. Variabel diisi `"Budi"`.
+    2.  Tepat 1 milidetik kemudian, **Siti** login. Variabel ditimpa jadi `"Siti"`.
+    3.  Handler untuk **Budi** baru berjalan, dia membaca variabel yang isinya sekarang `"Siti"`.
+* **Akibat:** Budi melihat data pribadi Siti. **Kebocoran data fatal!** 😱
+
+### ❌ Skenario 2: Mengubah Parameter Fungsi (Ribet!)
+Kita mengakali dengan mengubah fungsi handler jadi: `func UserHandler(w, r, user string)`.
+
+* **Masalah:** * Standar `http.Handler` Golang wajib formatnya `(w, r)`.
+    * Jika format diubah, function ini **tidak bisa lagi dipakai** oleh Router bawaan Go (`http.ServeMux`) atau library middleware standar lainnya.
+    * Kode jadi tidak modular dan sulit dipasang-pasang.
+
+### ✅ Skenario 3: Pakai Context (Solusi Tepat)
+Context adalah **penyimpanan data rahasia yang menempel pada setiap Request**.
+
+* **Keamanan (Thread Safe):** Setiap request punya "tas" (context) masing-masing. Tas Budi berisi "Budi", Tas Siti berisi "Siti". Meskipun ada 1 juta user login bersamaan, tas mereka tidak akan tertukar.
+* **Kebersihan:** Context tidak merusak standar fungsi `(w, r)`. Data disisipkan secara "gaib" di dalam `r` (request) itu sendiri.
+* **Lifecycle:** Begitu request selesai, semua data di dalam context otomatis dibuang dari memori. Hemat RAM.
+
+---
 
 ## 🛫 Analogi Sederhana: "Penerbangan Pesawat"
 
